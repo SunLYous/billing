@@ -1,0 +1,81 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Загрузка файлов для тарификации";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Загрузка файлов для тарификации</h4>
+            </div>
+            
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="uploadForm">
+                    <!-- CDR файл -->
+                    <div class="form-group">
+                        <label class="font-weight-bold">CDR файл <span class="text-danger">*</span></label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" asp-for="CdrFile" required>
+                            <label class="custom-file-label" for="CdrFile">Выберите файл</label>
+                        </div>
+                        <small class="form-text text-muted">Файл с данными о звонках</small>
+                    </div>
+
+                    <!-- Файл тарифов -->
+                    <div class="form-group">
+                        <label class="font-weight-bold">Файл тарифов <span class="text-danger">*</span></label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" asp-for="TariffFile" required>
+                            <label class="custom-file-label" for="TariffFile">Выберите файл</label>
+                        </div>
+                        <small class="form-text text-muted">Файл с тарифами</small>
+                    </div>
+
+                    <!-- Абонентская база -->
+                    <div class="form-group">
+                        <label class="font-weight-bold">Абонентская база <span class="text-danger">*</span></label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" asp-for="SubscriberFile" required>
+                            <label class="custom-file-label" for="SubscriberFile">Выберите файл</label>
+                        </div>
+                        <small class="form-text text-muted">Файл с абонентами</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-block btn-lg mt-4" id="submitBtn">
+                        Запустить тарификацию
+                    </button>
+                </form>
+
+                @if (Model.Progress > 0)
+                {
+                    <div class="mt-4">
+                        <h6>Прогресс обработки:</h6>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                 role="progressbar" 
+                                 style="width: @Model.Progress%">
+                                @Model.Progress%
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    <script>
+        // Отображение имени выбранного файла
+        $('.custom-file-input').on('change', function() {
+            var fileName = $(this).val().split('\\').pop();
+            $(this).next('.custom-file-label').html(fileName || 'Выберите файл');
+        });
+
+        // Блокировка кнопки при отправке
+        $('#uploadForm').on('submit', function() {
+            $('#submitBtn').prop('disabled', true).html('Обработка...');
+        });
+    </script>
