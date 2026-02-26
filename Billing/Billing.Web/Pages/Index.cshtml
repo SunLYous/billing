@@ -1,5 +1,5 @@
 @page
-@model IndexModel
+@model Billing.Web.Pages.IndexModel
 @{
     ViewData["Title"] = "Загрузка файлов для тарификации";
 }
@@ -10,40 +10,58 @@
             <div class="card-header bg-primary text-white">
                 <h4 class="mb-0">Загрузка файлов для тарификации</h4>
             </div>
-            
+
             <div class="card-body">
                 <form method="post" enctype="multipart/form-data" id="uploadForm">
+
                     <!-- CDR файл -->
-                    <div class="form-group">
-                        <label class="font-weight-bold">CDR файл <span class="text-danger">*</span></label>
-                        <div class="custom-file">
-                            <input type="file" class="custom-file-input" asp-for="CdrFile" required>
-                            <label class="custom-file-label" for="CdrFile">Выберите файл</label>
+                    <div class="mb-3">
+                        <label asp-for="CdrFile" class="form-label fw-bold">
+                            CDR файл <span class="text-danger">*</span>
+                        </label>
+                        <input asp-for="CdrFile"
+                               type="file"
+                               class="form-control"
+                               required/>
+                        <div class="form-text">
+                            Файл с данными о звонках (разделитель "|")
                         </div>
-                        <small class="form-text text-muted">Файл с данными о звонках</small>
+                        <span asp-validation-for="CdrFile" class="text-danger"></span>
                     </div>
 
                     <!-- Файл тарифов -->
-                    <div class="form-group">
-                        <label class="font-weight-bold">Файл тарифов <span class="text-danger">*</span></label>
-                        <div class="custom-file">
-                            <input type="file" class="custom-file-input" asp-for="TariffFile" required>
-                            <label class="custom-file-label" for="TariffFile">Выберите файл</label>
+                    <div class="mb-3">
+                        <label asp-for="TariffFile" class="form-label fw-bold">
+                            Файл тарифов <span class="text-danger">*</span>
+                        </label>
+                        <input asp-for="TariffFile"
+                               type="file"
+                               class="form-control"
+                               required/>
+                        <div class="form-text">
+                            CSV файл с тарифами (разделитель ";")
                         </div>
-                        <small class="form-text text-muted">Файл с тарифами</small>
+                        <span asp-validation-for="TariffFile" class="text-danger"></span>
                     </div>
 
                     <!-- Абонентская база -->
-                    <div class="form-group">
-                        <label class="font-weight-bold">Абонентская база <span class="text-danger">*</span></label>
-                        <div class="custom-file">
-                            <input type="file" class="custom-file-input" asp-for="SubscriberFile" required>
-                            <label class="custom-file-label" for="SubscriberFile">Выберите файл</label>
+                    <div class="mb-3">
+                        <label asp-for="SubscriberFile" class="form-label fw-bold">
+                            Абонентская база <span class="text-danger">*</span>
+                        </label>
+                        <input asp-for="SubscriberFile"
+                               type="file"
+                               class="form-control"
+                               required/>
+                        <div class="form-text">
+                            CSV файл с абонентами (разделитель ";")
                         </div>
-                        <small class="form-text text-muted">Файл с абонентами</small>
+                        <span asp-validation-for="SubscriberFile" class="text-danger"></span>
                     </div>
 
-                    <button type="submit" class="btn btn-success btn-block btn-lg mt-4" id="submitBtn">
+                    <button type="submit"
+                            class="btn btn-success w-100 btn-lg mt-3"
+                            id="submitBtn">
                         Запустить тарификацию
                     </button>
                 </form>
@@ -53,8 +71,8 @@
                     <div class="mt-4">
                         <h6>Прогресс обработки:</h6>
                         <div class="progress">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
-                                 role="progressbar" 
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                                 role="progressbar"
                                  style="width: @Model.Progress%">
                                 @Model.Progress%
                             </div>
@@ -67,15 +85,12 @@
 </div>
 
 
-    <script>
-        // Отображение имени выбранного файла
-        $('.custom-file-input').on('change', function() {
-            var fileName = $(this).val().split('\\').pop();
-            $(this).next('.custom-file-label').html(fileName || 'Выберите файл');
-        });
+<script>
+    const form = document.getElementById("uploadForm");
+    const button = document.getElementById("submitBtn");
 
-        // Блокировка кнопки при отправке
-        $('#uploadForm').on('submit', function() {
-            $('#submitBtn').prop('disabled', true).html('Обработка...');
-        });
-    </script>
+    form.addEventListener("submit", function () {
+        button.disabled = true;
+        button.innerText = "Обработка...";
+    });
+</script>

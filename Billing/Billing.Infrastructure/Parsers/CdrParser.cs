@@ -1,3 +1,4 @@
+using System.Globalization;
 using Billing.Application.Parsers.CallParser;
 using Billing.Domain.Models;
 
@@ -7,7 +8,7 @@ public sealed class CdrParser : ICallParser
 {
     public async Task<IReadOnlyCollection<Call>> ParseAsync(Stream stream)
     {
-        var result = new List<Call>();
+        var result = new List<Call>(128);
 
         using var reader = new StreamReader(stream);
 
@@ -19,24 +20,34 @@ public sealed class CdrParser : ICallParser
             var p = line.Split('|');
 
             if (p.Length < 12)
-                throw new InvalidDataException("Invalid CDR format.");
+                throw new InvalidDataException($"Invalid CDR format: {line}");
 
             result.Add(new Call
             {
-                StartTime = DateTime.Parse(p[0]),
-                EndTime = DateTime.Parse(p[1]),
-                CallingParty = p[2],
-                CalledParty = p[3],
+                StartTime = DateTime.Parse(p[0], CultureInfo.InvariantCulture),
+                EndTime = DateTime.Parse(p[1], CultureInfo.InvariantCulture),
+                CallingParty = NormalizePhone(p[2]),
+                CalledParty = NormalizePhone(p[3]),
                 Direction = ParseDirection(p[4]),
                 Disposition = ParseDisposition(p[5]),
-                Duration = int.Parse(p[6]),
-                BillableSeconds = int.Parse(p[7]),
+                Duration = int.Parse(p[6], CultureInfo.InvariantCulture),
+                BillableSeconds = int.Parse(p[7], CultureInfo.InvariantCulture),
                 CallId = p[10],
                 TrunkName = p[11]
             });
         }
 
         return result;
+    }
+
+    private static string NormalizePhone(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        return value[0] == '+'
+            ? value[1..]
+            : value;
     }
 
     private static CallDirection ParseDirection(string value) =>
