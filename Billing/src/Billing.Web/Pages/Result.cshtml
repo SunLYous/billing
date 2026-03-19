@@ -1,0 +1,203 @@
+@page "{batchId:guid}"
+@model ResultModel
+@{
+    ViewData["Title"] = "Результаты тарификации";
+}
+
+@if (Model.Batch?.Status != Billing.Domain.Models.BatchStatus.Completed)
+{
+    <div class="alert alert-info text-center">
+        <h5>Обработка...</h5>
+        <p>Статус: @Model.Batch?.Status</p>
+        <div class="spinner-border text-primary" role="status"></div>
+        <script>setTimeout(() => location.reload(), 3000);</script>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12">
+            <!-- Статистика обработки -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Статистика обработки</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Время обработки</h6>
+                            <h4 class="text-primary">
+                                @if (Model.Batch?.Elapsed is { } elapsed)
+                                {
+                                    @if (elapsed.TotalMinutes >= 1)
+                                    {
+                                        @($"{(int)elapsed.TotalMinutes} мин {elapsed.Seconds} сек")
+                                    }
+                                    else
+                                    {
+                                        @($"{elapsed.TotalSeconds:F1} сек")
+                                    }
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Всего CDR</h6>
+                            <h4>@Model.Batch?.TotalCalls.ToString("N0")</h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Тарифицировано</h6>
+                            <h4 class="text-success">@Model.TotalCount.ToString("N0")</h4>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Скорость</h6>
+                            <h4 class="text-info">
+                                @if (Model.Batch?.Elapsed is { TotalSeconds: > 0 } el)
+                                {
+                                    @($"{Model.Batch.TotalCalls / el.TotalSeconds:N0} CDR/сек")
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Итоги по абонентам -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Общая начисленная сумма по абонентам</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Абонент</th>
+                                <th class="text-right">Сумма, ₽</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Totals.Any())
+                            {
+                                @foreach (var item in Model.Totals)
+                                {
+                                    <tr>
+                                        <td>@item.Name</td>
+                                        <td class="text-right font-weight-bold text-success">
+                                            @item.Total.ToString("F2")
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted py-3">
+                                        Нет данных для отображения
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Детализация звонков -->
+            <div class="card shadow">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Детализация звонков</h5>
+                    <span class="badge badge-light">Всего: @Model.TotalCount</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Внутренний</th>
+                                    <th>Набранный</th>
+                                    <th>Направление</th>
+                                    <th>Минут</th>
+                                    <th>Тариф</th>
+                                    <th class="text-right">Соед.</th>
+                                    <th class="text-right">Стоимость</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Calls.Any())
+                                {
+                                    @foreach (var call in Model.Calls)
+                                    {
+                                        <tr>
+                                            <td>@call.Call.StartTime.ToString("dd.MM.yyyy HH:mm")</td>
+                                            <td>@call.Call.CallingParty</td>
+                                            <td>@call.Call.CalledParty</td>
+                                            <td>@call.AppliedTariff.Destination</td>
+                                            <td>@Math.Ceiling(call.Call.BillableSeconds / 60m)</td>
+                                            <td>@call.AppliedTariff.RatePerMinute.ToString("F2") ₽/мин</td>
+                                            <td class="text-right">@call.ConnectionFee.ToString("F2")</td>
+                                            <td class="text-right font-weight-bold text-success">
+                                                @call.CalculatedCost.ToString("F2")
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted py-3">
+                                            Нет данных о звонках
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (Model.TotalPages > 1)
+                    {
+                        <nav class="p-3">
+                            <ul class="pagination justify-content-center mb-0">
+                                <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : "")">
+                                    <a class="page-link"
+                                       asp-page="Result"
+                                       asp-route-batchId="@Model.BatchId"
+                                       asp-route-pageNumber="@(Model.PageNumber - 1)">
+                                        &laquo;
+                                    </a>
+                                </li>
+
+                                @for (var i = Math.Max(1, Model.PageNumber - 3); i <= Math.Min(Model.TotalPages, Model.PageNumber + 3); i++)
+                                {
+                                    <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                                        <a class="page-link"
+                                           asp-page="Result"
+                                           asp-route-batchId="@Model.BatchId"
+                                           asp-route-pageNumber="@i">
+                                            @i
+                                        </a>
+                                    </li>
+                                }
+
+                                <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")">
+                                    <a class="page-link"
+                                       asp-page="Result"
+                                       asp-route-batchId="@Model.BatchId"
+                                       asp-route-pageNumber="@(Model.PageNumber + 1)">
+                                        &raquo;
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}

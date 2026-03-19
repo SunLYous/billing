@@ -1,0 +1,196 @@
+@page "{batchId:guid}"
+@model ProgressModel
+@{
+    ViewData["Title"] = "Обработка тарификации";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Обработка тарификации</h4>
+            </div>
+            <div class="card-body">
+
+                <!-- Этапы -->
+                <div class="mb-4" id="stages">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="stage-dot" data-stage="upload">⏳ Загрузка</span>
+                        <span class="stage-dot text-muted" data-stage="parsing">Парсинг</span>
+                        <span class="stage-dot text-muted" data-stage="saving">Запись в БД</span>
+                        <span class="stage-dot text-muted" data-stage="rating">Тарификация</span>
+                        <span class="stage-dot text-muted" data-stage="saving_results">Сохранение</span>
+                        <span class="stage-dot text-muted" data-stage="done">Готово</span>
+                    </div>
+                </div>
+
+                <!-- Прогресс-бар -->
+                <div class="progress mb-3" style="height: 30px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                         role="progressbar"
+                         id="progressBar"
+                         style="width: 0%; transition: width 0.3s ease;">
+                        <span id="progressText">0%</span>
+                    </div>
+                </div>
+
+                <!-- Статус -->
+                <div class="text-center">
+                    <p class="mb-1" id="statusMessage">
+                        <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                        Подключение...
+                    </p>
+                    <small class="text-muted" id="elapsedTime">Прошло: 0 сек</small>
+                </div>
+
+                <!-- Ошибка (скрыта) -->
+                <div class="alert alert-danger mt-3 d-none" id="errorAlert">
+                    <strong>Ошибка:</strong> <span id="errorMessage"></span>
+                    <div class="mt-2">
+                        <a href="/" class="btn btn-outline-danger btn-sm">Попробовать снова</a>
+                    </div>
+                </div>
+
+                <!-- Результат (скрыт) -->
+                <div class="alert alert-success mt-3 d-none" id="successAlert">
+                    <strong>Тарификация завершена!</strong>
+                    <span id="successMessage"></span>
+                    <div class="mt-2">
+                        <a href="/Result/@Model.BatchId" class="btn btn-success" id="resultLink">
+                            Перейти к результатам
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stage-dot {
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+    .stage-active {
+        color: #fff !important;
+        background-color: #0d6efd;
+    }
+    .stage-done {
+        color: #198754 !important;
+    }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+
+<script>
+    const batchId = "@Model.BatchId";
+    const startTime = Date.now();
+
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+    const statusMessage = document.getElementById("statusMessage");
+    const elapsedTime = document.getElementById("elapsedTime");
+    const errorAlert = document.getElementById("errorAlert");
+    const errorMessage = document.getElementById("errorMessage");
+    const successAlert = document.getElementById("successAlert");
+    const successMessage = document.getElementById("successMessage");
+
+    const timer = setInterval(() => {
+        const sec = Math.floor((Date.now() - startTime) / 1000);
+        const min = Math.floor(sec / 60);
+        const s = sec % 60;
+        elapsedTime.textContent = min > 0
+            ? `Прошло: ${min} мин ${s} сек`
+            : `Прошло: ${s} сек`;
+    }, 1000);
+
+    const stageOrder = ["upload", "parsing", "saving", "rating", "saving_results", "done"];
+
+    function highlightStage(currentStage) {
+        const reached = stageOrder.indexOf(currentStage);
+        document.querySelectorAll(".stage-dot").forEach(el => {
+            const stage = el.dataset.stage;
+            const idx = stageOrder.indexOf(stage);
+            el.classList.remove("stage-active", "stage-done", "text-muted");
+            if (idx < reached) {
+                el.classList.add("stage-done");
+            } else if (idx === reached) {
+                el.classList.add("stage-active");
+            } else {
+                el.classList.add("text-muted");
+            }
+        });
+    }
+
+    // SignalR подключение
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/hubs/billing-progress")
+        .withAutomaticReconnect([0, 1000, 5000, 10000])
+        .build();
+
+    connection.on("ProgressUpdate", (data) => {
+        const pct = Math.min(100, Math.max(0, data.percent));
+        progressBar.style.width = pct + "%";
+        progressText.textContent = pct + "%";
+        statusMessage.innerHTML =
+            `<span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>${data.message || data.stage}`;
+        highlightStage(data.stage);
+    });
+
+    connection.on("Completed", (data) => {
+        clearInterval(timer);
+        progressBar.style.width = "100%";
+        progressBar.classList.remove("progress-bar-animated");
+        progressText.textContent = "100%";
+        statusMessage.innerHTML = "Обработка завершена";
+        highlightStage("done");
+
+        document.querySelector('[data-stage="done"]').textContent = "Готово";
+
+        successAlert.classList.remove("d-none");
+
+        setTimeout(() => {
+            window.location.href = `/Result/${batchId}`;
+        }, 2000);
+    });
+
+    connection.on("Error", (data) => {
+        clearInterval(timer);
+        progressBar.classList.remove("bg-success", "progress-bar-animated");
+        progressBar.classList.add("bg-danger");
+        statusMessage.innerHTML = "Ошибка обработки";
+        errorMessage.textContent = data.error;
+        errorAlert.classList.remove("d-none");
+    });
+
+    connection.onreconnecting(() => {
+        statusMessage.innerHTML =
+            `<span class="spinner-border spinner-border-sm text-warning me-2"></span>Переподключение...`;
+    });
+
+    connection.onreconnected(() => {
+        connection.invoke("JoinBatch", batchId);
+    });
+
+    // Старт
+    connection.start()
+        .then(() => {
+            console.log("SignalR connected");
+            return connection.invoke("JoinBatch", batchId);
+        })
+        .then(() => {
+            statusMessage.innerHTML =
+                `<span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>Ожидание обработки...`;
+            highlightStage("upload");
+        })
+        .catch(err => {
+            console.error("SignalR error:", err);
+            statusMessage.innerHTML = "Не удалось подключиться. Страница обновится автоматически.";
+            // Fallback: polling
+            setInterval(() => { location.reload(); }, 5000);
+        });
+</script>

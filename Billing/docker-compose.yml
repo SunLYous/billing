@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: billing
+      POSTGRES_USER: billing_app
+      POSTGRES_PASSWORD: billing_app
+    ports:
+      - "5432:5432"
+    command: postgres -c config_file=/etc/postgresql/custom.conf
+    volumes:
+      - ./docs/postgresql_tuning.conf:/etc/postgresql/custom.conf
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing_app -d billing"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__Billing: "Host=db;Port=5432;Database=billing;Username=billing_app;Password=billing_app;Pooling=true;MinPoolSize=5;MaxPoolSize=50"
+      ASPNETCORE_ENVIRONMENT: Production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

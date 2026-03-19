@@ -1,0 +1,46 @@
+# ── .NET ──
+bin/
+obj/
+publish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+log/
+*.nupkg
+*.snupkg
+project.lock.json
+ 
+# NuGet
+**/packages/
+*.nuget.props
+*.nuget.targets
+ 
+# Rider / VS
+.idea/
+*.sln.iml
+.vs/
+launchSettings.json
+ 
+# ── Python ──
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+ 
+# ── Тестовые данные ──
+test_data/
+ 
+# ── OS ──
+.DS_Store
+Thumbs.db
+ 
