@@ -36,76 +36,87 @@ public sealed class BillingOrchestrator
     }
 
     public async Task<Guid> ProcessAsync(
-        Stream cdrStream,
-        Stream tariffStream,
-        Stream subscriberStream,
+        Stream cdrStream, Stream tariffStream, Stream subscriberStream,
         Guid? existingBatchId = null,
         IProgress<int>? progress = null,
-        IProgress<(string Stage, int Percent, string Message)>? stageProgress = null,
+        IProgress<(string, int, string)>? stageProgress = null,
         CancellationToken ct = default)
     {
-        Guid batchId;
-        if (existingBatchId.HasValue)
-        {
-            batchId = existingBatchId.Value;
-        }
-        else
-        {
-            var batch = await _batchRepo.CreateAsync(ct);
-            batchId = batch.Id;
-        }
+        const int ChunkSize = 50_000;
+
+        Guid batchId = existingBatchId
+                       ?? (await _batchRepo.CreateAsync(ct)).Id;
 
         try
         {
             await _batchRepo.UpdateStatusAsync(batchId, BatchStatus.Parsing, ct: ct);
-            stageProgress?.Report(("parsing", 10, "Парсинг файлов..."));
-            _logger.LogInformation("Batch {BatchId}: начало парсинга", batchId);
+            stageProgress?.Report(("parsing", 5, "Парсинг тарифов и абонентов..."));
 
-            var callsTask = _callParser.ParseAsync(cdrStream, batchId, ct);
-            var tariffsTask = _tariffParser.ParseAsync(tariffStream, batchId, ct);
-            var subscribersTask = _subscriberParser.ParseAsync(subscriberStream, batchId, ct);
+            var tariffs = await _tariffParser.ParseAsync(tariffStream, batchId, ct);
+            var subscribers = await _subscriberParser.ParseAsync(subscriberStream, batchId, ct);
 
-            await Task.WhenAll(callsTask, tariffsTask, subscribersTask);
+            await _bulkRepo.BulkInsertTariffsAsync(tariffs, ct);
+            await _bulkRepo.BulkInsertSubscribersAsync(subscribers, ct);
 
-            var calls = callsTask.Result;
-            var tariffs = tariffsTask.Result;
-            var subscribers = subscribersTask.Result;
+            await _batchRepo.UpdateStatusAsync(batchId, BatchStatus.Rating, ct: ct);
+            stageProgress?.Report(("rating", 10, "Обработка CDR..."));
 
-            _logger.LogInformation(
-                "Batch {BatchId}: распарсено {Calls} звонков, {Tariffs} тарифов, {Subs} абонентов",
-                batchId, calls.Count, tariffs.Count, subscribers.Count);
+            var chunk = new List<Call>(ChunkSize);
+            var totalProcessed = 0;
+            var totalRated = 0;
 
-            stageProgress?.Report(("saving", 25, $"Сохранение {calls.Count:N0} записей в БД..."));
+            await foreach (var call in _callParser.ParseStreamAsync(cdrStream, batchId, ct))
+            {
+                chunk.Add(call);
 
-            await Task.WhenAll(
-                _bulkRepo.BulkInsertCallsAsync(calls, ct),
-                _bulkRepo.BulkInsertTariffsAsync(tariffs, ct),
-                _bulkRepo.BulkInsertSubscribersAsync(subscribers, ct));
+                if (chunk.Count >= ChunkSize)
+                {
+                    var rated = await ProcessChunkAsync(chunk, tariffs, batchId, ct);
+                    totalProcessed += chunk.Count;
+                    totalRated += rated;
 
-            await _batchRepo.UpdateStatusAsync(batchId, BatchStatus.Rating, totalCalls: calls.Count, ct: ct);
-            stageProgress?.Report(("rating", 40, "Тарификация..."));
-            _logger.LogInformation("Batch {BatchId}: начало тарификации", batchId);
+                    stageProgress?.Report(("rating", 10 + (int)(80.0 * totalProcessed / 3_000_000),
+                        $"Обработано {totalProcessed:N0} записей, тарифицировано {totalRated:N0}"));
 
-            var rated = _billingService.Rate(calls, tariffs, batchId, progress);
+                    chunk.Clear();
+                }
+            }
 
-            _logger.LogInformation("Batch {BatchId}: тарифицировано {Count} звонков", batchId, rated.Count);
-
-            stageProgress?.Report(("saving_results", 90, "Сохранение результатов..."));
-            await _bulkRepo.BulkInsertRatedCallsAsync(rated, ct);
+            if (chunk.Count > 0)
+            {
+                var rated = await ProcessChunkAsync(chunk, tariffs, batchId, ct);
+                totalProcessed += chunk.Count;
+                totalRated += rated;
+            }
 
             await _batchRepo.UpdateStatusAsync(batchId, BatchStatus.Completed,
-                processedCalls: rated.Count, ct: ct);
+                totalCalls: totalProcessed, processedCalls: totalRated, ct: ct);
 
-            stageProgress?.Report(("done", 100, $"Готово! Тарифицировано {rated.Count:N0} звонков."));
+            stageProgress?.Report(("done", 100,
+                $"Готово! {totalProcessed:N0} записей, {totalRated:N0} тарифицировано"));
 
             return batchId;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Batch {BatchId}: ошибка обработки", batchId);
+            _logger.LogError(ex, "Batch {BatchId}: ошибка", batchId);
             await _batchRepo.UpdateStatusAsync(batchId, BatchStatus.Failed,
                 error: ex.Message, ct: ct);
             throw;
         }
+    }
+
+    private async Task<int> ProcessChunkAsync(
+        List<Call> calls, IReadOnlyList<Tariff> tariffs,
+        Guid batchId, CancellationToken ct)
+    {
+        await _bulkRepo.BulkInsertCallsAsync(calls, ct);
+
+        var rated = _billingService.Rate(calls, tariffs, batchId);
+
+        if (rated.Count > 0)
+            await _bulkRepo.BulkInsertRatedCallsAsync(rated, ct);
+
+        return rated.Count;
     }
 }

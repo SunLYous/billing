@@ -38,11 +38,9 @@ public class ResultModel : PageModel
 
         if (Batch.Status != BatchStatus.Completed)
         {
-            // Batch ещё обрабатывается
             return Page();
         }
 
-        // Параллельные запросы: итоги + детализация + count
         var totalsTask = _resultRepo.GetTotalsByBatchIdAsync(BatchId, ct);
         var callsTask = _resultRepo.GetByBatchIdAsync(BatchId, PageNumber, PageSize, ct);
         var countTask = _resultRepo.GetCountByBatchIdAsync(BatchId, ct);

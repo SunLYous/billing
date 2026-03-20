@@ -4,11 +4,6 @@ using Billing.Web.Services;
 
 namespace Billing.Web.BackgroundServices;
 
-/// <summary>
-/// Обрабатывает тарификацию в фоне. Получает задачи через Channel.
-/// Это позволяет вернуть ответ клиенту сразу после загрузки файлов,
-/// а прогресс передавать через SignalR.
-/// </summary>
 public sealed class BillingBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -56,7 +51,6 @@ public sealed class BillingBackgroundService : BackgroundService
 
             var ratingProgress = new Progress<int>(async p =>
             {
-                // Rating maps to 40-90% of overall progress
                 var overall = 40 + (int)(p * 0.5);
                 await notifier.SendProgressAsync(batchId, "rating", overall, $"Тарификация: {p}%");
             });
@@ -84,7 +78,6 @@ public sealed class BillingBackgroundService : BackgroundService
         }
         finally
         {
-            // Удаляем временные файлы
             TryDelete(job.CdrFilePath);
             TryDelete(job.TariffFilePath);
             TryDelete(job.SubscriberFilePath);
@@ -97,14 +90,12 @@ public sealed class BillingBackgroundService : BackgroundService
     }
 }
 
-/// <summary>Задача на тарификацию.</summary>
 public sealed record BillingJob(
     Guid BatchId,
     string CdrFilePath,
     string TariffFilePath,
     string SubscriberFilePath);
 
-/// <summary>Очередь задач через Channel (потокобезопасная, backpressure).</summary>
 public sealed class BillingJobQueue
 {
     private readonly Channel<BillingJob> _channel =

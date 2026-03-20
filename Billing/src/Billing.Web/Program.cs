@@ -13,26 +13,22 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// === Kestrel: увеличенные лимиты для файлов ===
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 250 * 1024 * 1024; // 250 MB
+    options.Limits.MaxRequestBodySize = 700 * 1024 * 1024;
     options.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5);
     options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(5);
 });
 
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 250 * 1024 * 1024;
+    options.MultipartBodyLengthLimit = 700 * 1024 * 1024;
 });
 
-// === Infrastructure (PostgreSQL + Repositories) ===
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// === Domain Services ===
 builder.Services.AddSingleton<BillingService>();
 
-// === Application Services ===
 builder.Services.AddScoped<ICallParser, CallParser>();
 builder.Services.AddScoped<ITariffParser, TariffParser>();
 builder.Services.AddScoped<ISubscriberParser, SubscriberParser>();

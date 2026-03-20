@@ -3,9 +3,6 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Billing.Web.Services;
 
-/// <summary>
-/// Отправляет прогресс тарификации клиентам через SignalR.
-/// </summary>
 public sealed class BillingProgressNotifier
 {
     private readonly IHubContext<BillingProgressHub> _hub;

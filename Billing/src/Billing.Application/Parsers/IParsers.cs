@@ -4,7 +4,7 @@ namespace Billing.Application.Parsers;
 
 public interface ICallParser
 {
-    Task<IReadOnlyList<Call>> ParseAsync(Stream stream, Guid batchId, CancellationToken ct = default);
+    IAsyncEnumerable<Call> ParseStreamAsync(Stream stream, Guid batchId, CancellationToken ct = default);
 }
 
 public interface ITariffParser
